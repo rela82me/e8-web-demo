@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tesseract: The Final Form</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&display=swap');
+
+        body {
+            margin: 0;
+            padding: 0;
+            background: #000;
+            color: #e1bee7;
+            overflow: hidden;
+            font-family: 'Orbitron', 'Courier New', monospace;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+
+        canvas {
+            background: radial-gradient(ellipse at center, #1a0033 0%, #000 70%);
+            display: block;
+            width: 100%;
+            height: 100%;
+            cursor: grab;
+        }
+
+        canvas:active {
+            cursor: grabbing;
+        }
+
+        .info {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            font-size: 13px;
+            line-height: 1.6;
+            max-width: 320px;
+            background: rgba(0, 0, 0, 0.85);
+            padding: 15px;
+            border: 2px solid #9c27b0;
+            border-radius: 8px;
+            box-shadow: 0 0 25px rgba(156, 39, 176, 0.6), inset 0 0 10px rgba(156, 39, 176, 0.1);
+            color: #e1bee7;
+            backdrop-filter: blur(5px);
+            transition: all 0.3s ease;
+        }
+
+        .info:hover {
+            box-shadow: 0 0 35px rgba(156, 39, 176, 0.8), inset 0 0 15px rgba(156, 39, 176, 0.2);
+        }
+
+        .info h3 {
+            margin: 0 0 10px 0;
+            color: #ab47bc;
+            font-weight: 900;
+            text-shadow: 0 0 10px rgba(171, 71, 188, 0.5);
+        }
+
+        .controls {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            font-size: 11px;
+            background: rgba(0, 0, 0, 0.85);
+            padding: 12px;
+            border: 2px solid #673ab7;
+            border-radius: 8px;
+            box-shadow: 0 0 20px rgba(103, 58, 183, 0.5);
+            backdrop-filter: blur(5px);
+        }
+
+        .stats {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            font-size: 10px;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 8px;
+            border: 1px solid #512da8;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            color: #b39ddb;
+        }
+
+        .highlight {
+            color: #ff4081;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="info">
+        <h3>🎮 TESSERACT.ULTIMATE.EXE</h3>
+        <p>A <span class="highlight">mathematically perfect</span> 4D hypercube projection.</p>
+        <p>Watch as a single 4D object rotates through dimensions your meat brain can't comprehend, projected down to your pathetic 2D screen.</p>
+        <p><strong>Structure:</strong> 16 vertices • 32 edges • 24 2D faces • 8 3D cells<br>
+        <strong>Dimensions:</strong> 4D → 3D → 2D<br>
+        <strong>Chaos Level:</strong> <span class="highlight">Maximum</span></p>
+        <p>Mouse controls post-projection 3D perspective. Prepare for existential geometric crisis.</p>
+    </div>
+
+    <div class="controls">
+        <p><strong>REALITY CONTROLS:</strong></p>
+        <p>🖱️ Mouse: 3D Perspective</p>
+        <p>⏸️ Space: Pause/Resume</p>
+        <p>🔄 R: Reset View</p>
+        <p>🎲 C: Chaos Mode</p>
+        <p>💫 V: Visual Mode</p>
+        <p>🖱️ Wheel: Zoom</p>
+    </div>
+
+    <div class="stats">
+        <div id="fps">FPS: --</div>
+        <div id="mode">Mode: Standard</div>
+        <div id="zoom">Zoom: 1.00x</div>
+    </div>
+
+    <canvas id="tesseractCanvas"></canvas>
+
+    <script>
+        const canvas = document.getElementById('tesseractCanvas');
+        const ctx = canvas.getContext('2d');
+        let width = window.innerWidth;
+        let height = window.innerHeight;
+        canvas.width = width;
+        canvas.height = height;
+
+        // Performance tracking
+        let lastTime = 0;
+        let frameCount = 0;
+        let fps = 0;
+        
+        let zoom = 1;
+
+        window.addEventListener('resize', () => {
+            width = window.innerWidth;
+            height = window.innerHeight;
+            canvas.width = width;
+            canvas.height = height;
+        });
+        
+        canvas.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            const delta = e.deltaY * -0.01;
+            zoom = Math.min(Math.max(0.5, zoom + delta), 3.0);
+            document.getElementById('zoom').textContent = `Zoom: ${zoom.toFixed(2)}x`;
+        });
+
+        // 4D Vertices of a unit tesseract (systematically generated)
+        const vertices = [];
+        for (let w = -1; w <= 1; w += 2) {
+            for (let z = -1; z <= 1; z += 2) {
+                for (let y = -1; y <= 1; y += 2) {
+                    for (let x = -1; x <= 1; x += 2) {
+                        vertices.push([x, y, z, w]);
+                    }
+                }
+            }
+        }
+
+        // Tesseract edges: connect vertices that differ by exactly one coordinate
+        const edges = [];
+        for (let i = 0; i < vertices.length; i++) {
+            for (let j = i + 1; j < vertices.length; j++) {
+                let diff = 0;
+                for (let k = 0; k < 4; k++) {
+                    if (vertices[i][k] !== vertices[j][k]) diff++;
+                }
+                if (diff === 1) edges.push([i, j]);
+            }
+        }
+
+        // Tesseract cells, defined by their faces using the correct vertex indices
+        // Each cell has 6 faces, and each face has 4 vertices
+        const cells = [
+            // z = -1, w = -1
+            [[0, 1, 3, 2], [0, 4, 6, 2], [0, 8, 10, 2], [1, 5, 7, 3], [4, 5, 7, 6], [8, 9, 11, 10]],
+            // z = 1, w = -1
+            [[0, 1, 3, 2], [0, 4, 6, 2], [0, 8, 10, 2], [1, 5, 7, 3], [4, 5, 7, 6], [8, 9, 11, 10]],
+            // y = -1, w = -1
+            [[0, 1, 9, 8], [0, 4, 12, 8], [0, 2, 10, 8], [1, 3, 11, 9], [4, 5, 13, 12], [2, 3, 11, 10]],
+            // y = 1, w = -1
+            [[2, 3, 11, 10], [2, 6, 14, 10], [2, 0, 8, 10], [3, 7, 15, 11], [6, 7, 15, 14], [0, 1, 9, 8]],
+            // x = -1, w = -1
+            [[0, 2, 6, 4], [0, 8, 10, 2], [0, 1, 9, 8], [2, 3, 11, 10], [6, 7, 15, 14], [4, 5, 13, 12]],
+            // x = 1, w = -1
+            [[1, 3, 7, 5], [1, 9, 11, 3], [1, 0, 8, 9], [3, 2, 10, 11], [7, 6, 14, 15], [5, 4, 12, 13]],
+            // w = 1
+            [[0, 1, 5, 4], [2, 3, 7, 6], [8, 9, 13, 12], [10, 11, 15, 14], [0, 2, 6, 4], [1, 3, 7, 5]],
+            // w = -1
+            [[0, 8, 10, 2], [1, 9, 11, 3], [4, 12, 14, 6], [5, 13, 15, 7], [0, 4, 12, 8], [1, 5, 13, 9]]
+        ];
+
+        // Corrected cells definition
+        const correctedCells = [
+            // Cell 0: w=-1 (The "outer" cell in the initial wireframe projection)
+            [[0, 1, 3, 2], [4, 5, 7, 6], [0, 1, 5, 4], [2, 3, 7, 6], [0, 2, 6, 4], [1, 3, 7, 5]],
+            // Cell 1: w=1 (The "inner" cell)
+            [[8, 9, 11, 10], [12, 13, 15, 14], [8, 9, 13, 12], [10, 11, 15, 14], [8, 10, 14, 12], [9, 11, 15, 13]],
+            // Cell 2: x=1
+            [[1, 9, 11, 3], [5, 13, 15, 7], [1, 5, 13, 9], [3, 7, 15, 11], [1, 3, 7, 5], [9, 11, 15, 13]],
+            // Cell 3: x=-1
+            [[0, 8, 10, 2], [4, 12, 14, 6], [0, 4, 12, 8], [2, 6, 14, 10], [0, 2, 6, 4], [8, 10, 14, 12]],
+            // Cell 4: y=1
+            [[2, 10, 11, 3], [6, 14, 15, 7], [2, 6, 14, 10], [3, 7, 15, 11], [2, 3, 7, 6], [10, 11, 15, 14]],
+            // Cell 5: y=-1
+            [[0, 8, 9, 1], [4, 12, 13, 5], [0, 4, 12, 8], [1, 5, 13, 9], [0, 1, 5, 4], [8, 9, 13, 12]],
+            // Cell 6: z=1
+            [[4, 12, 13, 5], [6, 14, 15, 7], [4, 6, 14, 12], [5, 7, 15, 13], [4, 5, 7, 6], [12, 13, 15, 14]],
+            // Cell 7: z=-1
+            [[0, 8, 9, 1], [2, 10, 11, 3], [0, 2, 10, 8], [1, 3, 11, 9], [0, 1, 3, 2], [8, 9, 11, 10]]
+        ];
+
+        // Enhanced color palette with gradients
+        const cellColors = [
+            'rgba(156, 39, 176, 0.25)',   // Deep Purple (W=-1)
+            'rgba(233, 30, 99, 0.25)',    // Pink (W=1)
+            'rgba(103, 58, 183, 0.15)',   // Deep Purple connecting
+            'rgba(63, 81, 181, 0.15)',    // Indigo connecting
+            'rgba(33, 150, 243, 0.15)',   // Blue connecting
+            'rgba(0, 188, 212, 0.15)',    // Cyan connecting
+            'rgba(0, 150, 136, 0.15)',    // Teal connecting
+            'rgba(76, 175, 80, 0.15)'     // Green connecting
+        ];
+
+        const edgeColors = [
+            '#e91e63', '#9c27b0', '#673ab7', '#3f51b5',
+            '#2196f3', '#00bcd4', '#009688', '#4caf50'
+        ];
+
+        let rotation4D = { xy: 0, xz: 0, xw: 0, yz: 0, yw: 0, zw: 0 };
+        let rotation3D = { x: 0, y: 0 };
+        let mouseX = 0, mouseY = 0;
+        let isPaused = false;
+        let chaosMode = false;
+        let visualMode = 0; // 0: standard, 1: neon, 2: minimal
+
+        document.addEventListener('mousemove', (e) => {
+            mouseX = (e.clientX - width / 2) / (width / 2);
+            mouseY = (e.clientY - height / 2) / (height / 2);
+            rotation3D.y = mouseX * Math.PI * 0.8;
+            rotation3D.x = mouseY * Math.PI * 0.8;
+        });
+
+        document.addEventListener('keydown', (e) => {
+            switch(e.code) {
+                case 'Space':
+                    e.preventDefault();
+                    isPaused = !isPaused;
+                    break;
+                case 'KeyR':
+                    rotation4D = { xy: 0, xz: 0, xw: 0, yz: 0, yw: 0, zw: 0 };
+                    rotation3D = { x: 0, y: 0 };
+                    break;
+                case 'KeyC':
+                    chaosMode = !chaosMode;
+                    document.getElementById('mode').textContent = `Mode: ${chaosMode ? 'CHAOS' : 'Standard'}`;
+                    break;
+                case 'KeyV':
+                    visualMode = (visualMode + 1) % 3;
+                    const modes = ['Standard', 'Neon', 'Minimal'];
+                    document.getElementById('mode').textContent = `Mode: ${modes[visualMode]}`;
+                    break;
+            }
+        });
+
+        // Enhanced 4D rotation with proper matrix operations
+        function rotate4D(vertex, rotations) {
+            let [x, y, z, w] = vertex;
+
+            // XY plane rotation
+            let cos = Math.cos(rotations.xy), sin = Math.sin(rotations.xy);
+            [x, y] = [x * cos - y * sin, x * sin + y * cos];
+
+            // XZ plane rotation
+            cos = Math.cos(rotations.xz); sin = Math.sin(rotations.xz);
+            [x, z] = [x * cos - z * sin, x * sin + z * cos];
+
+            // XW plane rotation (the magic sauce)
+            cos = Math.cos(rotations.xw); sin = Math.sin(rotations.xw);
+            [x, w] = [x * cos - w * sin, x * sin + w * cos];
+
+            // YZ plane rotation
+            cos = Math.cos(rotations.yz); sin = Math.sin(rotations.yz);
+            [y, z] = [y * cos - z * sin, y * sin + z * cos];
+
+            // YW plane rotation
+            cos = Math.cos(rotations.yw); sin = Math.sin(rotations.yw);
+            [y, w] = [y * cos - w * sin, y * sin + w * cos];
+
+            // ZW rotation
+            cos = Math.cos(rotations.zw); sin = Math.sin(rotations.zw);
+            [z, w] = [z * cos - w * sin, z * sin + w * cos];
+
+            return [x, y, z, w];
+        }
+
+        // 3D rotation for mouse interaction
+        function rotate3D(vertex, rotations) {
+            let [x, y, z] = vertex;
+
+            // Y-axis rotation
+            let cos = Math.cos(rotations.y), sin = Math.sin(rotations.y);
+            [x, z] = [x * cos - z * sin, x * sin + z * cos];
+
+            // X-axis rotation
+            cos = Math.cos(rotations.x); sin = Math.sin(rotations.x);
+            [y, z] = [y * cos - z * sin, y * sin + z * cos];
+
+            return [x, y, z];
+        }
+
+        // Function to get the center of a cell for sorting
+        function getCenterOfCell(cell) {
+            let sumX = 0;
+            let sumY = 0;
+            let sumZ = 0;
+            let sumW = 0;
+            for (const face of cell) {
+                for (const vertexIndex of face) {
+                    sumX += vertices[vertexIndex][0];
+                    sumY += vertices[vertexIndex][1];
+                    sumZ += vertices[vertexIndex][2];
+                    sumW += vertices[vertexIndex][3];
+                }
+            }
+            const numVertices = cell.length * 4;
+            return [sumX / numVertices, sumY / numVertices, sumZ / numVertices, sumW / numVertices];
+        }
+
+        function animate(currentTime) {
+            // FPS calculation
+            frameCount++;
+            if (currentTime - lastTime >= 1000) {
+                fps = Math.round((frameCount * 1000) / (currentTime - lastTime));
+                document.getElementById('fps').textContent = `FPS: ${fps}`;
+                frameCount = 0;
+                lastTime = currentTime;
+            }
+
+            ctx.clearRect(0, 0, width, height);
+
+            if (!isPaused) {
+                const baseSpeed = 0.008;
+                const speed = chaosMode ? baseSpeed * (2 + Math.sin(currentTime * 0.001)) : baseSpeed;
+
+                rotation4D.xw += speed * 1.2;
+                rotation4D.yw += speed * 0.8;
+                rotation4D.zw += speed * 0.6;
+                rotation4D.xy += speed * 0.4;
+                rotation4D.xz += speed * 0.3;
+                rotation4D.yz += speed * 0.2;
+
+                // Update rotation display
+                const totalRot = (rotation4D.xw * 180 / Math.PI) % 360;
+                document.getElementById('zoom').textContent = `4D Rot: ${totalRot.toFixed(1)}°`;
+            }
+
+            // Apply 4D rotation to all vertices
+            const rotatedVertices = vertices.map(vertex => rotate4D(vertex, rotation4D));
+
+            // Project from 4D to 3D using perspective projection
+            const projected3D = rotatedVertices.map(vertex => {
+                const distance = 3.5;
+                const w = vertex[3];
+                const factor = distance / (distance + w);
+                return [
+                    vertex[0] * factor,
+                    vertex[1] * factor,
+                    vertex[2] * factor
+                ];
+            });
+
+            // Apply 3D rotation based on mouse
+            const final3D = projected3D.map(vertex => rotate3D(vertex, rotation3D));
+
+            // Final 2D projection
+            const projected2D = final3D.map(vertex => {
+                const scale = (visualMode === 2 ? 120 : 160) * zoom;
+                const perspective = 5;
+                const z = vertex[2] + perspective;
+                const factor = perspective / Math.max(z, 0.1);
+
+                return [
+                    (vertex[0] * factor * scale) + width / 2,
+                    (vertex[1] * factor * scale) + height / 2,
+                    z // Keep the Z for depth sorting
+                ];
+            });
+
+            // Draw cells and faces with depth sorting
+            if (visualMode !== 2) {
+                const cellsToDraw = [];
+                for(let i = 0; i < correctedCells.length; i++) {
+                    const cell = correctedCells[i];
+                    const cellCenter = getCenterOfCell(cell);
+                    const rotatedCenter = rotate4D(cellCenter, rotation4D);
+                    const distance = 3;
+                    const projectedZ = rotatedCenter[2] * (distance / (distance + rotatedCenter[3]));
+
+                    const faces = cell.map(face => {
+                        const faceVertices = face.map(vertexIndex => projected2D[vertexIndex]);
+                        const avgZ = faceVertices.reduce((sum, v) => sum + v[2], 0) / 4;
+                        return { vertices: faceVertices, z: avgZ };
+                    });
+
+                    cellsToDraw.push({ faces: faces, color: cellColors[i], z: projectedZ });
+                }
+
+                cellsToDraw.sort((a, b) => b.z - a.z);
+
+                for(const cell of cellsToDraw) {
+                     // Sort the faces within each cell for correct rendering
+                     cell.faces.sort((a,b) => b.z - a.z);
+                     for (const face of cell.faces) {
+                         ctx.fillStyle = cell.color;
+                         ctx.beginPath();
+                         ctx.moveTo(face.vertices[0][0], face.vertices[0][1]);
+                         for (let i = 1; i < face.vertices.length; i++) {
+                             ctx.lineTo(face.vertices[i][0], face.vertices[i][1]);
+                         }
+                         ctx.closePath();
+                         ctx.fill();
+                     }
+                }
+            }
+
+            // Draw edges
+            ctx.lineWidth = visualMode === 1 ? 2 : 1.5;
+            ctx.beginPath();
+
+            edges.forEach(([i, j]) => {
+                const p1 = projected2D[i];
+                const p2 = projected2D[j];
+
+                if (visualMode === 1) {
+                    // Neon mode with gradient edges
+                    const gradient = ctx.createLinearGradient(p1[0], p1[1], p2[0], p2[1]);
+                    gradient.addColorStop(0, edgeColors[i % edgeColors.length]);
+                    gradient.addColorStop(1, edgeColors[j % edgeColors.length]);
+                    ctx.strokeStyle = gradient;
+                    ctx.shadowColor = '#fff';
+                    ctx.shadowBlur = 10;
+                } else {
+                    ctx.strokeStyle = visualMode === 2 ? '#ffffff' : '#e91e63';
+                    ctx.shadowBlur = 0;
+                }
+                
+                ctx.beginPath();
+                ctx.moveTo(p1[0], p1[1]);
+                ctx.lineTo(p2[0], p2[1]);
+                ctx.stroke();
+            });
+
+            // Draw vertices
+            ctx.fillStyle = visualMode === 1 ? '#ffffff' : (visualMode === 2 ? '#cccccc' : '#ffc107');
+            projected2D.forEach((point) => {
+                ctx.beginPath();
+                const radius = visualMode === 2 ? 2 : (visualMode === 1 ? 4 : 3);
+                ctx.arc(point[0], point[1], radius, 0, Math.PI * 2);
+                ctx.fill();
+            });
+
+            requestAnimationFrame(animate);
+        }
+
+        animate(0);
+    </script>
+</body>
+</html>
